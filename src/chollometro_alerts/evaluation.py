@@ -66,6 +66,7 @@ def interest_rule_from_alert(alert_rule: AlertRule) -> InterestRule:
         momentum_enabled=alert_rule.momentum_enabled,
         momentum_window_minutes=alert_rule.momentum_window_minutes,
         minimum_temperature_velocity=alert_rule.minimum_temperature_velocity,
+        require_query_match=alert_rule.require_query_match,
     )
 
 
