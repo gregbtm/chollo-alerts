@@ -124,6 +124,35 @@ def query_matches(query: str, deal: Deal) -> bool:
     )
 
 
+def query_matches_loose(query: str, deal: Deal) -> bool:
+    """Tolerant title check for `require_query_match` rules (model numbers, kits).
+
+    Every word of the query must be in the title, in any order, so
+    ``64gb ddr5`` finds ``64GB (2x32GB) DDR5``.  A model number may also be
+    written with or without spaces: ``rx 9070 xt`` finds ``RX 9070XT``.  It is
+    deliberately word-aligned: ``9070`` never matches ``90701``.
+    """
+    expected = product_tokens(query)
+    actual = product_tokens(
+        " ".join(part for part in (deal.title, deal.product_text) if part)
+    )
+    if not expected or not actual:
+        return False
+    present = set(actual)
+    if all(token in present for token in expected):
+        return True
+    compact = "".join(expected)
+    for start in range(len(actual)):
+        joined = ""
+        for token in actual[start : start + 4]:
+            joined += token
+            if joined == compact:
+                return True
+            if len(joined) >= len(compact):
+                break
+    return False
+
+
 _GENERIC_QUERY_WORDS = frozenset(
     {
         "cerveza",
@@ -218,14 +247,12 @@ def apply_rule(deal: Deal, rule: InterestRule) -> FilterResult:
         len(product_tokens(rule.query)) > 1
         or rule.query.casefold() not in _GENERIC_QUERY_WORDS
     )
-    if (
-        relevance_only
-        and not rule.product_type
-        and not rule.brand
-        and rule.query is not None
-        and specific_query
-    ):
-        if not query_matches(rule.query, deal):
+    implicit_relevance = (
+        relevance_only and not rule.product_type and not rule.brand and specific_query
+    )
+    if rule.query is not None and (implicit_relevance or rule.require_query_match):
+        matcher = query_matches_loose if rule.require_query_match else query_matches
+        if not matcher(rule.query, deal):
             return verdict(False, "REJECTED_RELEVANCE")
         checks.append(
             ConditionCheck(
@@ -261,8 +288,8 @@ def apply_rule(deal: Deal, rule: InterestRule) -> FilterResult:
             ConditionCheck(
                 "MAX_PRICE_PER_LITER",
                 "Precio por litro",
-                f"{format_amount(deal.price_per_liter)}/L < "
-                f"{format_amount(rule.max_price_per_liter)}/L",
+                f"{format_amount(deal.price_per_liter, deal.currency)}/L < "
+                f"{format_amount(rule.max_price_per_liter, deal.currency)}/L",
             )
         )
     if rule.max_price_per_kilogram is not None:
@@ -277,8 +304,8 @@ def apply_rule(deal: Deal, rule: InterestRule) -> FilterResult:
             ConditionCheck(
                 "MAX_PRICE_PER_KILOGRAM",
                 "Precio por kilo",
-                f"{format_amount(price_per_kilogram)}/kg < "
-                f"{format_amount(rule.max_price_per_kilogram)}/kg",
+                f"{format_amount(price_per_kilogram, deal.currency)}/kg < "
+                f"{format_amount(rule.max_price_per_kilogram, deal.currency)}/kg",
             )
         )
     if rule.min_quantity is not None:
@@ -320,8 +347,8 @@ def apply_rule(deal: Deal, rule: InterestRule) -> FilterResult:
             ConditionCheck(
                 "MAX_PRICE_PER_UNIT",
                 "Precio por unidad",
-                f"{format_amount(deal.price_per_unit)}/ud < "
-                f"{format_amount(rule.max_price_per_unit)}/ud",
+                f"{format_amount(deal.price_per_unit, deal.currency)}/ud < "
+                f"{format_amount(rule.max_price_per_unit, deal.currency)}/ud",
             )
         )
     # An unknown required value is never a match.  In particular, a deal with
@@ -335,7 +362,8 @@ def apply_rule(deal: Deal, rule: InterestRule) -> FilterResult:
             ConditionCheck(
                 "MAX_PRICE",
                 "Precio máximo",
-                f"{format_amount(deal.price)} < {format_amount(rule.max_price)}",
+                f"{format_amount(deal.price, deal.currency)} < "
+                f"{format_amount(rule.max_price, deal.currency)}",
             )
         )
     # The temperature window is one more AND condition, checked after the price
