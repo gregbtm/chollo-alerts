@@ -22,12 +22,21 @@ def _retry_after(response):
 
 
 def post_with_retry(
-    url, *, json, timeout, retries=2, backoff=0.5, max_backoff=30, sleep=time.sleep
+    url,
+    *,
+    json,
+    timeout,
+    retries=2,
+    backoff=0.5,
+    max_backoff=30,
+    sleep=time.sleep,
+    headers=None,
 ):
-    """POST to Telegram with bounded retries for transient failures only."""
+    """POST a notification with bounded retries for transient failures only."""
+    extra = {"headers": headers} if headers else {}
     for attempt in range(retries + 1):
         try:
-            response = requests.post(url, json=json, timeout=timeout)
+            response = requests.post(url, json=json, timeout=timeout, **extra)
             status = getattr(response, "status_code", None)
             if status not in TRANSIENT_TELEGRAM_STATUS:
                 response.raise_for_status()

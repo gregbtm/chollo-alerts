@@ -189,6 +189,15 @@ class AlertRule(BaseModel):
     )
     momentum_window_minutes: int = Field(default=15, ge=5)
     minimum_temperature_velocity: float = Field(default=3.0, ge=0)
+    require_query_match: bool = Field(
+        default=False,
+        description=(
+            "Opt-in: the query must appear in the deal title, even when the "
+            "rule also has price, temperature, category or age limits. Needed "
+            "for rules without a product type or brand, because the scanner "
+            "evaluates every new deal in the feed against every rule."
+        ),
+    )
     schema_version: int = Field(default=1, ge=1)
 
     @field_validator("query", "product", "brand", "category", "store")
