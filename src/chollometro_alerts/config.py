@@ -1,5 +1,6 @@
 import math
 import os
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -58,6 +59,65 @@ class TelegramSettings:
             == "true",
             telegram_user_id=os.getenv("TELEGRAM_USER_ID", "").strip() or None,
             alert_nlp_mode=alert_nlp_mode,
+        )
+
+
+SUPPORTED_NOTIFIERS = ("telegram", "ntfy")
+
+
+def notifier_kind() -> str:
+    """Which delivery channel the scanner uses (`NOTIFIER`, default telegram)."""
+    load_project_dotenv()
+    kind = os.getenv("NOTIFIER", "telegram").strip().casefold() or "telegram"
+    if kind not in SUPPORTED_NOTIFIERS:
+        raise ConfigurationError(
+            "NOTIFIER debe ser uno de: " + ", ".join(SUPPORTED_NOTIFIERS)
+        )
+    return kind
+
+
+@dataclass(frozen=True)
+class NtfySettings:
+    """Where matches are published when `NOTIFIER=ntfy`."""
+
+    url: str
+    topic: str
+    token: str | None = None
+    priority: int = 3
+    language: str = "en"
+    timeout: float = 20
+
+    @classmethod
+    def from_env(cls):
+        load_project_dotenv()
+        missing = [
+            name
+            for name in ("NTFY_URL", "NTFY_TOPIC")
+            if not os.getenv(name, "").strip()
+        ]
+        if missing:
+            raise ConfigurationError("faltan " + ", ".join(missing))
+        url = os.environ["NTFY_URL"].strip().rstrip("/")
+        if not url.startswith(("http://", "https://")):
+            raise ConfigurationError("NTFY_URL debe empezar por http:// o https://")
+        topic = os.environ["NTFY_TOPIC"].strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", topic):
+            raise ConfigurationError(
+                "NTFY_TOPIC solo admite letras, números, '-' y '_' (máximo 64)"
+            )
+        raw_priority = os.getenv("NTFY_PRIORITY", "3").strip() or "3"
+        try:
+            priority = int(raw_priority)
+        except ValueError as exc:
+            raise ConfigurationError("NTFY_PRIORITY debe ser un entero 1-5") from exc
+        if not 1 <= priority <= 5:
+            raise ConfigurationError("NTFY_PRIORITY debe ser un entero 1-5")
+        return cls(
+            url=url,
+            topic=topic,
+            token=os.getenv("NTFY_TOKEN", "").strip() or None,
+            priority=priority,
+            language=os.getenv("NTFY_LANGUAGE", "en").strip().casefold() or "en",
         )
 
 
@@ -479,6 +539,10 @@ class InterestRule:
     momentum_enabled: bool = False
     momentum_window_minutes: int = 15
     minimum_temperature_velocity: float = 3.0
+    # Opt-in: the query must appear in the deal title, whatever other limits
+    # the rule has. Without it the title is only checked for rules that carry
+    # no price/temperature/category/age condition.
+    require_query_match: bool = False
 
 
 _INTEREST_RULE_ALIASES = {"min_temperature": "temperature_min"}
