@@ -67,11 +67,15 @@ def format_amount(value: Decimal | int | None, currency: str = "EUR") -> str:
         return "N/D"
     symbol = {"EUR": "€", "GBP": "£", "PLN": "zł"}.get(currency, currency)
     value = value if isinstance(value, Decimal) else Decimal(value)
+    # Sterling reads "£599.99"; euro and zloty keep the continental "599,99 €".
+    prefix = currency == "GBP"
     if value == value.to_integral_value():
-        return f"{format(value.normalize(), 'f')} {symbol}"
+        number = format(value.normalize(), "f")
+        return f"{symbol}{number}" if prefix else f"{number} {symbol}"
     rounded = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     separator = "," if currency in {"EUR", "PLN"} else "."
-    return f"{rounded:.2f}".replace(".", separator) + f" {symbol}"
+    number = f"{rounded:.2f}".replace(".", separator)
+    return f"{symbol}{number}" if prefix else f"{number} {symbol}"
 
 
 def format_number(value: Decimal | float | None) -> str:

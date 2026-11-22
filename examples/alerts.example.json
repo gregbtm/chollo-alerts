@@ -1,0 +1,25 @@
+{
+  "alerts": [
+    {
+      "name": "EDIT ME - 64GB DDR5 kit",
+      "query": "64gb ddr5",
+      "constraints": { "max_price": "250" }
+    },
+    {
+      "name": "EDIT ME - Ryzen 9 9950X3D",
+      "query": "ryzen 9 9950x3d",
+      "constraints": { "max_price": "600" }
+    },
+    {
+      "name": "EDIT ME - RX 9070 XT, not AliExpress",
+      "query": "rx 9070 xt",
+      "exclude_merchants": ["AliExpress"],
+      "constraints": { "max_price": "650" }
+    },
+    {
+      "name": "EDIT ME - anything hot in gaming PCs",
+      "query": "gaming pc",
+      "constraints": { "temperature_min": 300 }
+    }
+  ]
+}
